@@ -7,13 +7,17 @@ from datetime import datetime, timedelta
 import streamlit as st
 import pytz as pytz
 
-K=240
+K=625
 r=0.02
 sigma=0.5
 
 def black_scholes_call(S,T):
+    S = float(S)
+    T = float(T)
     if T == 0:
         return max(S - K, 0)  # Handle expiration edge case
+    if T < 0:
+        return 0
     d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
     d2 = d1 - sigma * np.sqrt(T)
     call_price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
@@ -27,11 +31,11 @@ stock_data = {
 
 df=pd.DataFrame(stock_data)
 
-st.line_chart(df)
+##st.line_chart(df)
 
 df['call_price'] = df.apply(lambda row:black_scholes_call(row['S'],row['T']), axis=1)
 
-st.write(df)
+##st.write(df)
 
 
 
@@ -41,7 +45,7 @@ est = pytz.timezone('US/Eastern')
 utc = pytz.utc
 fmt = '%Y-%m-%d %H:%M:%S %Z%z'
 dt1 = datetime.fromisoformat(dt1_str)
-st.write(dt1.astimezone(est).strftime(fmt))
+##st.write(dt1.astimezone(est).strftime(fmt))
 
 def to_EST(dt):
     return dt.datetime.astimezone(est)
@@ -55,21 +59,21 @@ dt2 = dt1.replace(hour=17, minute=0, second=0, microsecond=0)
 
 # Calculate the difference
 time_difference = dt2 - dt1
-st.write(time_difference.total_seconds())
+##st.write(time_difference.total_seconds())
 
 data = yf.download('SPY', start='2025-07-15', end='2025-07-16', interval='1m')
 data = data.reset_index()
-st.write(data['Datetime'])
+##st.write(data['Datetime'])
 
 
 data['Date'] = data['Datetime'].dt.strftime(fmt)
 
 
 
-st.write(data['Date'])
+##st.write(data['Date'])
 
 
-st.write(data['Close'])
+##st.write(data['Close'])
 data['hi']=data['Close'].pct_change()
 
 from datetime import datetime, time, timedelta
@@ -141,13 +145,24 @@ def minutes_from_4pm(datetime_series):
     four_pm_datetimes = datetime_series.dt.normalize() + pd.to_timedelta(four_pm.hour, unit='h')
     
     # Calculate the time difference (timedelta)
-    time_difference = datetime_series - four_pm_datetimes
+    time_difference = four_pm_datetimes - datetime_series
     
     # Convert timedelta to minutes
     minutes = time_difference.dt.total_seconds() / 60 /60/24/365
     
     return minutes
 
-
 data['tim'] = data.apply(lambda row: minutes_from_4pm(row['Datetime']), axis=1)
-st.write(data)
+ttt = pd.DataFrame(data)
+st.write(ttt['tim'])
+ttt['tim'] = ttt['tim'].astype(float)
+st.write(ttt['tim'].dtype)
+st.write(ttt['Close'])
+
+ttt['oknow'] = ttt.apply(lambda row:black_scholes_call(row['Close'],row['tim']), axis=1)
+st.write(ttt['oknow'])
+
+
+
+
+

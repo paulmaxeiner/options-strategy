@@ -10,7 +10,7 @@ import pytz as pytz
 K = st.number_input("Insert a number",min_value=1, value=625)
 st.write("The current number is ", K)
 
-r=0.02
+r=0.03
 sigma=0.5
 
 def black_scholes_call(S,T,K):

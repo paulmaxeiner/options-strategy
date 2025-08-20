@@ -130,11 +130,14 @@ st.pyplot(fig)
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(data['Close SPY'], label='Market Return')
 st.pyplot(fig)
+st.pyplot(fig)
 
 st.line_chart(data,x='Datetime',y=['RSI','Call Price 625'])
 
 st.line_chart(data,x='Datetime',y='Close SPY')
 st.line_chart(data,x='Datetime',y=['Call Price 625','Call Price 626','Call Price 623','Call Price 624','Call Price 630','Call Price 628'])
+
+
 ##data.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in data.columns]
 
 

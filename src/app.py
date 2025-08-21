@@ -7,8 +7,8 @@ from datetime import datetime, time, timedelta
 import streamlit as st
 import pytz as pytz
 
-K = st.number_input("Insert a number",min_value=1, value=625)
-st.write("The current number is ", K)
+K = st.number_input("Insert a value for K",min_value=1, value=625)
+st.write("K:", K)
 
 r=0.03
 sigma=0.5

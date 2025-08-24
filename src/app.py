@@ -49,7 +49,7 @@ fmt = '%Y-%m-%d %H:%M:%S %Z%z'
 dt1 = datetime.fromisoformat(dt1_str)
 
 
-data = yf.download('SPY', start='2025-07-14', end='2025-07-15', interval='1m')
+data = yf.download('SPY', start='2025-08-14', end='2025-08-15', interval='1m')
 data = data.reset_index()
 
 data['Date'] = data['Datetime'].dt.strftime(fmt)

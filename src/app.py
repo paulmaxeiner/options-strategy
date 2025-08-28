@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
+from scipy import stats as st
 from datetime import datetime, time, timedelta
 import streamlit as st
 import pytz as pytz
@@ -52,6 +53,10 @@ dt1 = datetime.fromisoformat(dt1_str)
 data = yf.download('SPY', start='2025-08-14', end='2025-08-15', interval='1m')
 data = data.reset_index()
 
+vix = yf.download('^VIX', start='2025-08-14', end='2025-08-15', interval='1m').reset_index()
+vix['Datetime'] = pd.to_datetime(vix['Datetime'], utc=True)
+st.write(vix)
+
 data['Date'] = data['Datetime'].dt.strftime(fmt)
 data['Pct Change']=data['Close'].pct_change()
 
@@ -59,13 +64,8 @@ data['Time'] = pd.to_datetime(data['Datetime'], utc=True, format='%H:%M:%S.%f').
 st.write(data)
 
 def minutes_to_4pm(datetime_series):
-    # Ensure datetime is timezone-aware (in New York time)
     datetime_series = datetime_series.dt.tz_convert('America/New_York')
-
-    # Create a datetime object for 4 PM on each day
     four_pm_today = datetime_series.dt.normalize() + pd.Timedelta(hours=16)
-
-    # Compute the difference in minutes
     time_difference = four_pm_today - datetime_series
     minutes = time_difference.dt.total_seconds() / 60
 
@@ -85,6 +85,8 @@ data['Call Price 626'] = data.apply(lambda row:black_scholes_call(row['Close SPY
 data['Call Price 630'] = data.apply(lambda row:black_scholes_call(row['Close SPY'],row['T'],630), axis=1)
 data['Call Price 628'] = data.apply(lambda row:black_scholes_call(row['Close SPY'],row['T'],628), axis=1)
 
+
+### Actual strategy backtest
 
 def rsi_signal(rsi):
     if rsi < 30:

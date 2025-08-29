@@ -141,25 +141,7 @@ st.line_chart(data,x='Datetime',y=['RSI','Call Price 625'])
 st.line_chart(data,x='Datetime',y='Close SPY')
 st.line_chart(data,x='Datetime',y=['Call Price 625','Call Price 626','Call Price 623','Call Price 624','Call Price 630','Call Price 628'])
 
-np.random.seed(1024)
-data2 = pd.DataFrame({
-    "SPY": np.random.normal(0, 1, 1000),
-    "VIX": np.random.normal(0, 1, 1000)
-})
 
-# Fit a Gaussian copula
-copula = GaussianMultivariate()
-copula.fit(data2)
-synthetic = copula.sample(5)
-print(synthetic)
-plt.scatter(data2["SPY"], data2["VIX"], alpha=0.5, label="Real Data")
-plt.scatter(synthetic["SPY"], synthetic["VIX"], alpha=0.5, label="Copula Samples")
-
-plt.xlabel("SPY Returns")
-plt.ylabel("VIX Returns")
-plt.legend()
-plt.title("Copula Fit vs Real Data")
-plt.show()
 
 
 ##data.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in data.columns]

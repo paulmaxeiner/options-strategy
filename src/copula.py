@@ -9,6 +9,7 @@ import streamlit as st
 import pytz as pytz
 from copulas.multivariate import GaussianMultivariate
 
+#Git issues fixed
 np.random.seed(1024)
 
 data = yf.download(['SPY','^VIX'], start='2025-08-15', end='2025-08-16', interval='1m')

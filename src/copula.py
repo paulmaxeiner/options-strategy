@@ -8,12 +8,13 @@ from scipy.stats import rankdata, norm, kendalltau, spearmanr
 from datetime import datetime, time, timedelta
 import streamlit as st
 import pytz as pytz
+from copulas.visualization import compare_3d, scatter_3d
 from copulas.multivariate import GaussianMultivariate
 
 
 np.random.seed(1024)
 
-st.date_input("Date", value="today", min_value=None, max_value=None, key=None, help=None, on_change=None, args=None, kwargs=None, format="YYYY-MM-DD", disabled=False, label_visibility="visible", width="stretch")
+selected_date = st.date_input("Date", value="today", min_value=None, max_value=None, key=None, help=None, on_change=None, args=None, kwargs=None, format="YYYY-MM-DD", disabled=False, label_visibility="visible", width="stretch")
 
 # Download historical data for SPY and VIX
 data = yf.download(['SPY','^VIX'], start='2025-08-15', end='2025-08-16', interval='1m')
@@ -48,7 +49,7 @@ else:
     model.fit(rets)  #columns:'SPY_ret', 'VIX_ret'
 
     # make sample from fitted copula
-    m = 10000
+    m = len(rets)
     
     sim = model.sample(m)
     # ensure same column order/names
@@ -83,4 +84,23 @@ else:
     plt.grid(True, alpha=0.3)
     st.pyplot(fig_vix)
     plt.close(fig_vix)
+    
+    st.subheader("Scatter Plot: SPY and VIX Copula-Simulated Returns")
+    st.scatter_chart(sim,x='SPY_ret',y='VIX_ret')
+    
+    rets['SPY_sim'] = sim['SPY_ret'].values
+    rets['VIX_sim'] = sim['VIX_ret'].values
+    
+    
+    
+    fig_line = plt.figure(figsize=(10, 4))
+    plt.plot(rets['SPY_ret'].values, label='SPY Real Returns', alpha=0.7)
+    plt.plot(rets['SPY_sim'].values, label='SPY Copula Sim Returns', alpha=0.7)
+    plt.xlabel("Time")
+    plt.ylabel("SPY Returns")
+    plt.title("SPY Real vs Copula Simulated Returns")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    st.pyplot(fig_line)
+    plt.close(fig_line)
 

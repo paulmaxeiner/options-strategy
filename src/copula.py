@@ -2,25 +2,18 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import norm
 from scipy import stats as st
-from scipy.stats import rankdata, norm, kendalltau, spearmanr
+from scipy.stats import rankdata, norm, kendalltau, spearmanr, t
 from datetime import datetime, time, timedelta
 import streamlit as st
 import pytz as pytz
 from copulas.visualization import compare_3d, scatter_3d
 from copulas.multivariate import GaussianMultivariate
+from copulas.datasets import sample_trivariate_xyz
 
-
-np.random.seed(1024)
-
-selected_date = st.date_input("Date", value="today", min_value=None, max_value=None, key=None, help=None, on_change=None, args=None, kwargs=None, format="YYYY-MM-DD", disabled=False, label_visibility="visible", width="stretch")
-
-# Download historical data for SPY and VIX
-data = yf.download(['SPY','^VIX'], start='2025-08-15', end='2025-08-16', interval='1m')
-
-# Remove blank spaces
-data = data.dropna()
+data = yf.download(['SPY','^VIX'], start='2025-08-14', end='2025-08-15', interval='1m')
+data.reset_index(inplace=True)
+data.dropna(inplace=True)
 
 df = pd.DataFrame(data={
     'SPY': data['Close']['SPY'],
@@ -34,7 +27,6 @@ print(data)
 st.write(data)
 st.write(df)
 
-#only returns
 rets = df[['SPY_ret', 'VIX_ret']].replace([np.inf, -np.inf], np.nan).dropna().copy()
 
 tau = kendalltau(rets['SPY_ret'], rets['VIX_ret']).correlation

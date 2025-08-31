@@ -134,13 +134,16 @@ K_arr, T_arr, C_arr = np.array(points).T
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection='3d')
 sc = ax.scatter(K_arr, T_arr, C_arr, c=C_arr, cmap=cm.viridis, s=30)
-ax.set_xlabel('Strike K')
+ax.set_xlabel('K')
 ax.set_ylabel('Time to Expiry T (years)')
 ax.set_zlabel('Call Price C')
 ax.set_title('Black–Scholes Call Price Points 0DTE')
 fig.colorbar(sc, shrink=0.6, aspect=14, label='Call Price')
 
 st.pyplot(fig)
+
+
+
 
 
 
@@ -174,7 +177,6 @@ def rsi_signal(rsi):
         return -1    # Sell signal
     else:
         return 0     # Hold
-
 
 data['Signal'] = data['RSI'].apply(rsi_signal)
 

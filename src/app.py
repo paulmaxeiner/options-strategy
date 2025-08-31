@@ -2,6 +2,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from matplotlib.ticker import LinearLocator
 from scipy.stats import norm
 from scipy import stats as st
 from datetime import datetime, time, timedelta
@@ -99,18 +101,48 @@ st.pyplot(fig)
 atm_price = round(spy['Close'].iloc[-1])
 st.write("ATM Price:", atm_price)
 
-call_prices = pd.DataFrame({
+call_prices = pd.DataFrame(data={
     atm_price + x: spy.apply(lambda row: black_scholes_call(row['Close'], row['T'], atm_price + x), axis=1)
     for x in range(-10, 10)
 })
 
-call_returns = pd.DataFrame({     
+call_returns = pd.DataFrame(data={     
     atm_price + x: (spy.apply(lambda row: black_scholes_call(row['Close'], row['T'], atm_price + x), axis=1).pct_change()+1).cumprod()-1
     for x in range(-10, 10)
 }) 
 
 st.write(call_prices)
 st.write(call_returns)
+
+
+S0 = spy['Close'].rolling(60, min_periods=1).mean().iloc[-1]
+atm = int(round(S0))
+
+K_values = np.linspace(atm - 20, atm + 20, 20)
+T_eps = 1e-6
+T_values = np.linspace(max(T_eps, spy['T'].min()), max(T_eps, spy['T'].max()), 20)
+
+points = []
+for K in K_values:
+    for T in T_values:
+        C = black_scholes_call(S0, float(T), float(K))
+        points.append((K, T, C))
+
+K_arr, T_arr, C_arr = np.array(points).T
+
+
+fig = plt.figure(figsize=(10, 7))
+ax = fig.add_subplot(111, projection='3d')
+sc = ax.scatter(K_arr, T_arr, C_arr, c=C_arr, cmap=cm.viridis, s=30)
+ax.set_xlabel('Strike K')
+ax.set_ylabel('Time to Expiry T (years)')
+ax.set_zlabel('Call Price C')
+ax.set_title('Black–Scholes Call Price Points 0DTE')
+fig.colorbar(sc, shrink=0.6, aspect=14, label='Call Price')
+
+st.pyplot(fig)
+
+
 
 st.line_chart(call_prices)
 st.line_chart(call_returns)

@@ -9,9 +9,7 @@ import streamlit as st
 import pytz as pytz
 from copulas.multivariate import GaussianMultivariate
 
-K = st.number_input("Insert a value for K",min_value=1, value=625)
-ticker = st.text_input("Insert a ticker", value="SPY")
-st.write("K:", K)
+
 
 r=0.03
 sigma=0.5
@@ -88,20 +86,43 @@ spy['Time'] = pd.to_datetime(data['Datetime'], utc=True, format='%H:%M:%S.%f').d
 spy['T'] = data.apply(lambda row: minutes_to_close(row['Datetime']), axis=1)
 st.write(spy)
 
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(spy['Close'], label='SPY Price')
+ax.set_title("SPY")
+ax.set_xlabel("Time")
+ax.set_ylabel("Price")
+ax.legend()
+ax.grid(True)
+st.pyplot(fig)
+
 
 atm_price = round(spy['Close'].iloc[-1])
 st.write("ATM Price:", atm_price)
 
 call_prices = pd.DataFrame({
     atm_price + x: spy.apply(lambda row: black_scholes_call(row['Close'], row['T'], atm_price + x), axis=1)
-    for x in range(-5, 5)
+    for x in range(-10, 10)
 })
 
+call_returns = pd.DataFrame({     
+    atm_price + x: (spy.apply(lambda row: black_scholes_call(row['Close'], row['T'], atm_price + x), axis=1).pct_change()+1).cumprod()-1
+    for x in range(-10, 10)
+}) 
+
 st.write(call_prices)
+st.write(call_returns)
 
 st.line_chart(call_prices)
+st.line_chart(call_returns)
 
-
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(call_prices, label=call_prices.columns)
+ax.set_title("0DTE Call Prices")
+ax.set_xlabel("Time")
+ax.set_ylabel("Price")
+ax.legend()
+ax.grid(True)
+st.pyplot(fig)
 
 
 data['T'] = data.apply(lambda row: minutes_to_close(row['Datetime']), axis=1)

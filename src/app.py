@@ -130,7 +130,6 @@ for K in K_values:
 
 K_arr, T_arr, C_arr = np.array(points).T
 
-
 fig = plt.figure(figsize=(10, 7))
 ax = fig.add_subplot(111, projection='3d')
 sc = ax.scatter(K_arr, T_arr, C_arr, c=C_arr, cmap=cm.viridis, s=30)
@@ -139,6 +138,27 @@ ax.set_ylabel('Time to Expiry T (years)')
 ax.set_zlabel('Call Price C')
 ax.set_title('Black–Scholes Call Price Points 0DTE')
 fig.colorbar(sc, shrink=0.6, aspect=14, label='Call Price')
+
+st.pyplot(fig)
+
+fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+X = np.unique(K_arr)
+Y = np.unique(T_arr)
+X, Y = np.meshgrid(X, Y)
+Z = np.zeros_like(X)
+
+for i in range(X.shape[0]):
+    for j in range(X.shape[1]):
+        Z[i, j] = black_scholes_call(S0, Y[i, j], X[i, j])
+
+# Plot the surface.
+surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
+                       linewidth=0, antialiased=False)
+
+ax.zaxis.set_major_locator(LinearLocator(10))
+ax.zaxis.set_major_formatter('{x:.02f}')
+
+fig.colorbar(surf, shrink=0.5, aspect=5)
 
 st.pyplot(fig)
 

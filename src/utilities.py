@@ -39,11 +39,7 @@ def getStockData(ticker, start, end, interval):
     stock['T'] = data.apply(lambda row: minutes_to_close(row['Datetime']), axis=1)
     return stock
 
-r=0.03
-sigma=0.5
-
-
-def call(S,K,T):
+def C(S,K,T, r=0.03, sigma=0.5):
     S = float(S)
     T = float(T)
     if T == 0:
@@ -55,17 +51,9 @@ def call(S,K,T):
     price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
     return price
 
-def put(S,K,T):
-    S = float(S)
-    T = float(T)
-    if T == 0:
-        return max(K - S, 0)
-    if T < 0:
-        return 0
-    d1 = (np.log(S / K) + (r + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
-    d2 = d1 - sigma * np.sqrt(T)
-    call_price = S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2)
-    return call_price
+def P(S,K,T, r=0.03, sigma=0.5):
+    price = C(S,K,T, r=r, sigma=sigma) - S + K * np.exp(-r * T) #put call parity!
+    return price
 
 
 

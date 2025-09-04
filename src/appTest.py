@@ -2,6 +2,7 @@
 import math
 import numpy as np
 import pandas as pd
+from matplotlib import cm
 import matplotlib.pyplot as plt
 import streamlit as st
 from datetime import date, datetime, timedelta, time as dtime
@@ -140,7 +141,7 @@ def backtest_rsi_calls(df: pd.DataFrame,
             in_pos = True
             entry_idx = i
             K = round(S_now)  # ATM strike
-            entry_price = C(float(S_now), float(K), float(T_now), r=r, sigma=float(sigma_now))
+            entry_price = max(0.01, C(float(S_now), float(K), float(T_now), r=r, sigma=float(sigma_now)))
             data.at[data.index[i], "position"] = contracts
             # mark current MTM
             data.at[data.index[i], "call_mtm"] = entry_price
@@ -283,6 +284,148 @@ if run_btn:
 
     except Exception as e:
         st.error(f"Backtest failed: {e}")
+
+# ==== New: Single-Day RSI Threshold Surface (3D) =============================
+# ==== Fixed: 30-Day Aggregated RSI Threshold Surface (3D) ====================
+st.markdown("---")
+st.header("RSI Threshold Surface — Aggregated Over Last 30 Market Days")
+
+with st.expander("Configure grid"):
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        buy_min = st.number_input("Buy RSI min", 5, 95, 20, 1, key="agg_buy_min")
+        buy_max = st.number_input("Buy RSI max", 5, 95, 40, 1, key="agg_buy_max")
+        buy_step = st.number_input("Buy RSI step", 1, 20, 5, 1, key="agg_buy_step")
+    with col2:
+        sell_min = st.number_input("Sell RSI min", 5, 95, 60, 1, key="agg_sell_min")
+        sell_max = st.number_input("Sell RSI max", 5, 95, 90, 1, key="agg_sell_max")
+        sell_step = st.number_input("Sell RSI step", 1, 20, 5, 1, key="agg_sell_step")
+    with col3:
+        n_days = st.number_input("# market days (max 30)", 5, 30, 30, 1, key="agg_n_days")
+    with col4:
+        show_top_table = st.checkbox("Show top combos table", value=True, key="agg_show_top")
+
+run_surface = st.button("Run Grid Across Last N Market Days", key="agg_run_surface")
+
+# ... rest of the code unchanged ...
+
+@st.cache_data(show_spinner=False)
+def _surface_for_day(
+    the_day: date,
+    interval: str,
+    buy_vals: list[int],
+    sell_vals: list[int],
+    r_rate: float,
+    sigma_const: float,
+    use_dynamic_sigma: bool,
+    sigma_window: int,
+    contracts: int,
+    fee_per_side: float,
+    rsi_period: int
+):
+    # Load day once
+    df = load_data(the_day, interval)
+    if df.empty:
+        return None, None, None, None
+
+    # Pre-allocate result table
+    records = []
+    # Compute total NetPnL for each (buy, sell)
+    for b in buy_vals:
+        for s in sell_vals:
+            if b >= s:           # invalid regime (won't logically trigger exit); skip
+                pnl = np.nan
+                ntrades = 0
+            else:
+                bt_df, trades_df = backtest_rsi_calls(
+                    df,
+                    rsi_period=rsi_period,
+                    buy_thr=b,
+                    sell_thr=s,
+                    r=r_rate,
+                    sigma_const=sigma_const,
+                    use_dyn_sigma=use_dynamic_sigma,
+                    sigma_window=sigma_window,
+                    interval=interval,
+                    contracts=contracts,
+                    fee_per_side=fee_per_side
+                )
+                pnl = float(trades_df["NetPnL"].sum()) if not trades_df.empty else 0.0
+                ntrades = int(len(trades_df))
+            records.append({"Buy": b, "Sell": s, "NetPnL": pnl, "Trades": ntrades})
+
+    res_df = pd.DataFrame(records)
+
+    # Build Z matrix aligned to (Buy x Sell) grid
+    buy_sorted = sorted(set(res_df["Buy"]))
+    sell_sorted = sorted(set(res_df["Sell"]))
+    Z = np.full((len(buy_sorted), len(sell_sorted)), np.nan)
+    for i, b in enumerate(buy_sorted):
+        for j, s in enumerate(sell_sorted):
+            val = res_df.loc[(res_df["Buy"] == b) & (res_df["Sell"] == s), "NetPnL"]
+            if not val.empty:
+                Z[i, j] = float(val.iloc[0])
+
+    # Best combo
+    best_row = res_df.loc[res_df["NetPnL"].idxmax()] if res_df["NetPnL"].notna().any() else None
+    return res_df, np.array(buy_sorted), np.array(sell_sorted), Z, best_row
+
+if run_surface:
+    # Build ranges
+    buy_vals  = list(range(buy_min,  buy_max + 1,  buy_step))
+    sell_vals = list(range(sell_min, sell_max + 1, sell_step))
+
+    with st.spinner("Sweeping RSI thresholds…"):
+        res = _surface_for_day(
+            trading_day,
+            interval,
+            buy_vals,
+            sell_vals,
+            r_rate,
+            sigma_const,
+            use_dynamic_sigma,
+            sigma_window,
+            contracts,
+            fee_per_side,
+            rsi_period
+        )
+
+    if res is None or res[0] is None:
+        st.warning("No data for that day. Try a different weekday.")
+    else:
+        res_df, B, S, Z, best = res
+
+        # Summary of best combo
+        if best is not None and np.isfinite(best["NetPnL"]):
+            st.success(f"Best combo: Buy {int(best['Buy'])}, Sell {int(best['Sell'])} → NetPnL ${best['NetPnL']:.2f} (Trades: {int(best['Trades'])})")
+        else:
+            st.info("No profitable combination found (or all invalid).")
+
+        # --- 3D Surface ---
+        st.subheader("3D Profit Surface")
+        fig3d = plt.figure(figsize=(9, 6))
+        ax3d = fig3d.add_subplot(111, projection='3d')
+
+        # Create meshgrid using Buy (X) and Sell (Y)
+        X, Y = np.meshgrid(S, B)   # shape matches Z: rows=B (buy), cols=S (sell)
+        surf = ax3d.plot_surface(X, Y, Z, cmap=cm.RdYlGn, linewidth=0, antialiased=True)
+        ax3d.set_xlabel("Sell RSI")
+        ax3d.set_ylabel("Buy RSI")
+        ax3d.set_zlabel("Total Profit ($)")
+        ax3d.set_title(f"Day: {trading_day.isoformat()} | Interval: {interval}")
+        fig3d.colorbar(surf, shrink=0.6, aspect=15)
+        st.pyplot(fig3d, clear_figure=True)
+
+        # Optional: show top combos
+        if show_table:
+            st.subheader("Top Combinations")
+            top = res_df.dropna().sort_values("NetPnL", ascending=False).head(15)
+            st.dataframe(
+                top.style.format({"NetPnL": "{:.2f}"}),
+                use_container_width=True
+            )
+# ==== End Single-Day RSI Threshold Surface ===================================
+
 
 # ==== New: 30-day auto backtest ==============================================
 st.markdown("---")
@@ -441,3 +584,176 @@ if run_batch:
                 mime="text/csv",
             )
 # ==== End 30-day auto backtest ===============================================
+
+# ==== New: 30-Day Aggregated RSI Threshold Surface (3D) ======================
+st.markdown("---")
+st.header("RSI Threshold Surface — Aggregated Over Last 30 Market Days")
+
+with st.expander("Configure grid"):
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        buy_min = st.number_input("Buy RSI min", 5, 95, 20, 1)
+        buy_max = st.number_input("Buy RSI max", 5, 95, 40, 1)
+        buy_step = st.number_input("Buy RSI step", 1, 20, 5, 1)
+    with col2:
+        sell_min = st.number_input("Sell RSI min", 5, 95, 60, 1)
+        sell_max = st.number_input("Sell RSI max", 5, 95, 90, 1)
+        sell_step = st.number_input("Sell RSI step", 1, 20, 5, 1)
+    with col3:
+        n_days = st.number_input("# market days (max 30)", 5, 30, 30, 1)
+    with col4:
+        show_top_table = st.checkbox("Show top combos table", value=True)
+
+run_agg_surface = st.button("Run Grid Across Last N Market Days")
+
+@st.cache_data(show_spinner=False)
+def _prefetch_days_data(days: list, interval: str):
+    """Load once per day; ignore empty days."""
+    loaded = []
+    for d in days:
+        df = load_data(d, interval)
+        if not df.empty:
+            loaded.append((d, df))
+    return loaded
+
+@st.cache_data(show_spinner=False)
+def _agg_surface_over_days(
+    days: list,
+    interval: str,
+    buy_vals: list[int],
+    sell_vals: list[int],
+    r_rate: float,
+    sigma_const: float,
+    use_dynamic_sigma: bool,
+    sigma_window: int,
+    contracts: int,
+    fee_per_side: float,
+    rsi_period: int
+):
+    """Sweep (buy, sell) grid, sum NetPnL across all provided days."""
+    # prefetch day data to avoid repeated downloads
+    day_data = _prefetch_days_data(days, interval)
+    if not day_data:
+        return None, None, None, None, None  # no valid days
+
+    records = []
+    # Iterate grid
+    for b in buy_vals:
+        for s in sell_vals:
+            if b >= s:
+                # invalid region (won't logically allow a cross-down exit); mark NaN
+                records.append({"Buy": b, "Sell": s, "NetPnL": np.nan, "Trades": 0, "DaysUsed": 0})
+                continue
+
+            total_pnl = 0.0
+            total_trades = 0
+            days_used = 0
+
+            for (the_day, df) in day_data:
+                try:
+                    bt_df, trades_df = backtest_rsi_calls(
+                        df,
+                        rsi_period=rsi_period,
+                        buy_thr=b,
+                        sell_thr=s,
+                        r=r_rate,
+                        sigma_const=sigma_const,
+                        use_dyn_sigma=use_dynamic_sigma,
+                        sigma_window=sigma_window,
+                        interval=interval,
+                        contracts=contracts,
+                        fee_per_side=fee_per_side
+                    )
+                    if trades_df is not None:
+                        total_pnl += float(trades_df["NetPnL"].sum()) if not trades_df.empty else 0.0
+                        total_trades += int(len(trades_df))
+                        days_used += 1
+                except Exception:
+                    # skip broken day gracefully
+                    pass
+
+            records.append({
+                "Buy": b,
+                "Sell": s,
+                "NetPnL": total_pnl,
+                "Trades": total_trades,
+                "DaysUsed": days_used
+            })
+
+    res_df = pd.DataFrame(records)
+
+    # Build Z matrix aligned with (Buy x Sell) where rows=Buy, cols=Sell
+    buy_sorted = sorted(set(res_df["Buy"]))
+    sell_sorted = sorted(set(res_df["Sell"]))
+    Z = np.full((len(buy_sorted), len(sell_sorted)), np.nan)
+    for i, b in enumerate(buy_sorted):
+        for j, s in enumerate(sell_sorted):
+            val = res_df.loc[(res_df["Buy"] == b) & (res_df["Sell"] == s), "NetPnL"]
+            if not val.empty:
+                Z[i, j] = float(val.iloc[0])
+
+    # Best combo across all days
+    best_row = res_df.loc[res_df["NetPnL"].idxmax()] if res_df["NetPnL"].notna().any() else None
+    return res_df, np.array(buy_sorted), np.array(sell_sorted), Z, best_row
+
+if run_agg_surface:
+    # Build ranges (ensure sensible bounds)
+    buy_vals  = list(range(buy_min,  buy_max + 1,  buy_step))
+    sell_vals = list(range(sell_min, sell_max + 1, sell_step))
+
+    with st.spinner("Sweeping RSI thresholds across market days…"):
+        # Use your existing helper to detect last N market days
+        days = _last_n_market_days(int(n_days), interval)
+        res = _agg_surface_over_days(
+            days=days,
+            interval=interval,
+            buy_vals=buy_vals,
+            sell_vals=sell_vals,
+            r_rate=r_rate,
+            sigma_const=sigma_const,
+            use_dynamic_sigma=use_dynamic_sigma,
+            sigma_window=sigma_window,
+            contracts=contracts,
+            fee_per_side=fee_per_side,
+            rsi_period=rsi_period
+        )
+
+    if res is None or res[0] is None:
+        st.warning("No valid market days found in the recent window.")
+    else:
+        res_df, B, S, Z, best = res
+
+        if best is not None and np.isfinite(best["NetPnL"]):
+            st.success(
+                f"Best aggregated combo over {int(res_df['DaysUsed'].max())} days: "
+                f"Buy {int(best['Buy'])}, Sell {int(best['Sell'])} "
+                f"→ NetPnL ${best['NetPnL']:.2f} (Trades: {int(best['Trades'])})"
+            )
+        else:
+            st.info("No profitable combination found (or all invalid).")
+
+        # --- 3D Surface: X=Buy RSI, Y=Sell RSI, Z=Total NetPnL ---
+        st.subheader("3D Aggregated Profit Surface (Last N Market Days)")
+        fig3d = plt.figure(figsize=(9, 6))
+        ax3d = fig3d.add_subplot(111, projection='3d')
+
+        # Meshgrid with X=Buy, Y=Sell; Z shape rows=len(Buy), cols=len(Sell)
+        X, Y = np.meshgrid(B, S, indexing="ij")  # X rows follow B, Y cols follow S
+        surf = ax3d.plot_surface(X, Y, Z, cmap=cm.viridis, linewidth=0, antialiased=True)
+        ax3d.set_xlabel("Buy RSI")
+        ax3d.set_ylabel("Sell RSI")
+        ax3d.set_zlabel("Total Profit ($)")
+        ax3d.set_title(f"Aggregated over last {len(days)} market days | Interval: {interval}")
+        fig3d.colorbar(surf, shrink=0.6, aspect=15)
+        st.pyplot(fig3d, clear_figure=True)
+
+        # Optional table of top combos
+        if show_top_table:
+            st.subheader("Top Combinations (Aggregated)")
+            top = res_df.dropna().sort_values("NetPnL", ascending=False).head(20)
+            st.dataframe(
+                top.style.format({"NetPnL": "{:.2f}"}),
+                use_container_width=True
+            )
+
+# ==== End 30-Day Aggregated RSI Threshold Surface ============================

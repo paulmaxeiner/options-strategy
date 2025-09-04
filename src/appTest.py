@@ -29,7 +29,7 @@ with st.sidebar:
 
     st.subheader("Execution")
     contracts = st.number_input("# of contracts per trade", min_value=1, value=1, step=1)
-    fee_per_side = st.number_input("Fee/slippage per side ($)", min_value=0.0, value=2.50, step=0.25)
+    fee_per_side = st.number_input("Fee/slippage per side ($)", min_value=0.0, value=0.03, step=0.1)
     run_btn = st.button("Run Backtest")
 
 st.caption("This sim uses **ATM** calls (strike = round(spot at entry)) that **expire today at 4:00 PM ET**. "
@@ -223,6 +223,7 @@ if run_btn:
         win_rate = (wins / ntrades * 100.0) if ntrades else 0.0
         avg_trade = float(trades_df["NetPnL"].mean()) if ntrades else 0.0
         max_dd = float((bt_df["equity"].cummax() - bt_df["equity"]).max()) if not bt_df.empty else 0.0
+        total_return = (bt_df["equity"].iloc[-1] - bt_df["equity"].iloc[0]) if not bt_df.empty else 0.0
 
         # Trade-return Sharpe (per trade) for a quick feel
         if ntrades:
@@ -232,12 +233,13 @@ if run_btn:
         else:
             sharpe = np.nan
 
-        c1, c2, c3, c4, c5 = st.columns(5)
+        c1, c2, c3, c4, c5, c6 = st.columns(6)
         c1.metric("Net PnL ($)", f"{total_pnl:,.2f}")
         c2.metric("Trades", f"{ntrades}")
         c3.metric("Win rate", f"{win_rate:.1f}%")
         c4.metric("Avg trade ($)", f"{avg_trade:,.2f}")
         c5.metric("Max Drawdown ($)", f"{max_dd:,.2f}")
+        c6.metric("Return", f"{total_return*100:.2f}%")
 
         # --------- Charts ---------
         st.subheader("Equity Curve")
@@ -282,3 +284,160 @@ if run_btn:
     except Exception as e:
         st.error(f"Backtest failed: {e}")
 
+# ==== New: 30-day auto backtest ==============================================
+st.markdown("---")
+st.header("30-Day Auto Backtest")
+
+def _day_metrics(
+    the_day: date,
+    interval: str,
+    rsi_period: int,
+    buy_threshold: int,
+    sell_threshold: int,
+    r_rate: float,
+    sigma_const: float,
+    use_dynamic_sigma: bool,
+    sigma_window: int,
+    contracts: int,
+    fee_per_side: float,
+):
+    """Run a single-day backtest and aggregate daily metrics."""
+    df = load_data(the_day, interval)
+    if df.empty:
+        return None  # market closed or no data
+
+    bt_df, trades_df = backtest_rsi_calls(
+        df,
+        rsi_period=rsi_period,
+        buy_thr=buy_threshold,
+        sell_thr=sell_threshold,
+        r=r_rate,
+        sigma_const=sigma_const,
+        use_dyn_sigma=use_dynamic_sigma,
+        sigma_window=sigma_window,
+        interval=interval,
+        contracts=contracts,
+        fee_per_side=fee_per_side
+    )
+
+    if trades_df.empty:
+        return {
+            "Date": pd.to_datetime(the_day),
+            "Trades": 0,
+            "PremiumSpent": 0.0,
+            "PremiumReceived": 0.0,
+            "NetPnL": 0.0,
+            "ReturnPct": 0.0,
+            "WinRatePct": 0.0,
+        }
+
+    # Premium spent/received (ex-fees); we compute return on premium put at risk
+    premium_spent = float((trades_df["EntryCall"] * trades_df["Contracts"]).sum())
+    premium_recv  = float((trades_df["ExitCall"]  * trades_df["Contracts"]).sum())
+    net_pnl       = float(trades_df["NetPnL"].sum())
+    ntrades       = int(len(trades_df))
+    wins          = int((trades_df["NetPnL"] > 0).sum())
+    win_rate_pct  = (wins / ntrades) * 100.0 if ntrades else 0.0
+
+    # Define daily "return" as NetPnL divided by total premium spent that day
+    denom = premium_spent if premium_spent > 0 else np.nan
+    ret_pct = (net_pnl / denom) * 100.0 if denom and not np.isnan(denom) else 0.0
+
+    return {
+        "Date": pd.to_datetime(the_day),
+        "Trades": ntrades,
+        "PremiumSpent": premium_spent,
+        "PremiumReceived": premium_recv,
+        "NetPnL": net_pnl,
+        "ReturnPct": ret_pct,
+        "WinRatePct": win_rate_pct,
+    }
+
+def _last_n_market_days(n: int, interval: str, lookback_days: int = 90):
+    """
+    Heuristic: scan back up to `lookback_days` calendar days, keep days
+    where load_data() returns RTH bars. Stops after collecting n days.
+    """
+    days = []
+    today = pd.Timestamp.today(tz="America/New_York").date()
+    for d in pd.date_range(end=today, periods=lookback_days, freq="D")[::-1]:
+        the_day = d.date()
+        # quick probe: if load_data not empty, treat as market day
+        try:
+            df = load_data(the_day, interval)
+            if not df.empty:
+                days.append(the_day)
+        except Exception:
+            # ignore fetch errors for broken days
+            pass
+        if len(days) >= n:
+            break
+    return days
+
+cA, cB = st.columns([1, 2])
+with cA:
+    run_batch = st.button("Run Last 30 Market Days")
+with cB:
+    st.caption("Runs the same RSI/BS call strategy for each of the most recent 30 market days with available data.")
+
+if run_batch:
+    with st.spinner("Backtesting 30 market days…"):
+        days = _last_n_market_days(20, interval)
+        results = []
+        for d in days:
+            m = _day_metrics(
+                the_day=d,
+                interval=interval,
+                rsi_period=rsi_period,
+                buy_threshold=buy_threshold,
+                sell_threshold=sell_threshold,
+                r_rate=r_rate,
+                sigma_const=sigma_const,
+                use_dynamic_sigma=use_dynamic_sigma,
+                sigma_window=sigma_window,
+                contracts=contracts,
+                fee_per_side=fee_per_side,
+            )
+            if m is not None:
+                results.append(m)
+
+        if not results:
+            st.warning("No valid days found in the recent window.")
+        else:
+            res_df = pd.DataFrame(results).sort_values("Date")
+            res_df["Date"] = res_df["Date"].dt.date  # cleaner display
+
+            # Summary row
+            total_pnl = float(res_df["NetPnL"].sum())
+            total_spent = float(res_df["PremiumSpent"].sum())
+            # geometric aggregation is tricky; report arithmetic average of daily returns:
+            avg_ret = float(res_df["ReturnPct"].mean()) if len(res_df) else 0.0
+
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total Net PnL ($)", f"{total_pnl:,.2f}")
+            c2.metric("Total Premium Spent ($)", f"{total_spent:,.2f}")
+            c3.metric("Avg Daily Return (%)", f"{avg_ret:,.2f}")
+
+            st.subheader("Daily Results (Last 30 Market Days)")
+            st.dataframe(
+                res_df[
+                    ["Date", "Trades", "PremiumSpent", "PremiumReceived", "NetPnL", "ReturnPct", "WinRatePct"]
+                ].style.format({
+                    "PremiumSpent": "{:.2f}",
+                    "PremiumReceived": "{:.2f}",
+                    "NetPnL": "{:.2f}",
+                    "ReturnPct": "{:.2f}",
+                    "WinRatePct": "{:.1f}",
+                }),
+                use_container_width=True
+            )
+
+            # Download
+            csv = res_df.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Download CSV",
+                data=csv,
+                file_name="rsi_bs_calls_30d_results.csv",
+                mime="text/csv",
+            )
+# ==== End 30-day auto backtest ===============================================

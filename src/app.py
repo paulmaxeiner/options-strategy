@@ -64,7 +64,7 @@ fmt = '%Y-%m-%d %H:%M:%S %Z%z'
 dt1 = datetime.fromisoformat(dt1_str)
 
 
-data = yf.download(['SPY','^VIX'], start='2025-08-14', end='2025-08-15', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2025-08-28', end='2025-08-29', interval='1m')
 
 data = data.dropna()
 data = data.reset_index()

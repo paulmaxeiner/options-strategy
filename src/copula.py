@@ -11,7 +11,7 @@ from copulas.visualization import compare_3d, scatter_3d
 from copulas.multivariate import GaussianMultivariate
 from copulas.datasets import sample_trivariate_xyz
 
-data = yf.download(['SPY','^VIX'], start='2025-08-21', end='2025-08-22', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2025-09-21', end='2025-09-22', interval='1m')
 data.reset_index(inplace=True)
 data.dropna(inplace=True)
 

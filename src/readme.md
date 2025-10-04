@@ -1,0 +1,1 @@
+This is a simple options pricing strategy.

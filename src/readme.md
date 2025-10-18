@@ -1,1 +1,1 @@
-This is a simple options pricing strategy.
+This is a simple options pricing strategy that uses Black-Scholes valuation and VIX copula modeling to generate alpha over a one day period.

@@ -10,8 +10,9 @@ import pytz as pytz
 from copulas.visualization import compare_3d, scatter_3d
 from copulas.multivariate import GaussianMultivariate
 from copulas.datasets import sample_trivariate_xyz
+import t_copula as tc
 
-data = yf.download(['SPY','^VIX'], start='2025-09-21', end='2025-09-22', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2025-10-14', end='2025-10-15', interval='1m')
 data.reset_index(inplace=True)
 data.dropna(inplace=True)
 
@@ -33,17 +34,17 @@ tau = kendalltau(rets['SPY_ret'], rets['VIX_ret']).correlation
 rho_s = spearmanr(rets['SPY_ret'], rets['VIX_ret']).correlation
 
 if len(rets) < 20:
-    st.warning("not large enoughy dataset")
+    st.warning("not large enough dataset")
 else:
-    
-    #Fit Gaussian copula
+
+    #Fit Student copula
     model = GaussianMultivariate()
     model.fit(rets)  #columns:'SPY_ret', 'VIX_ret'
 
     # make sample from fitted copula
     m = len(rets)
-    
     sim = model.sample(m)
+    
     # ensure same column order/names
     sim = sim[['SPY_ret', 'VIX_ret']].dropna()
 
@@ -91,6 +92,20 @@ else:
     plt.xlabel("Time")
     plt.ylabel("SPY Returns")
     plt.title("SPY Real vs Copula Simulated Returns")
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    st.pyplot(fig_line)
+    plt.close(fig_line)
+    
+    fig_line = plt.figure(figsize=(10, 4))
+    tcop = tc.t_copula_sample(len(rets), df=4, rho=tau, seed=42)
+    rets['SPY_sim'] = tcop[0]
+    rets['VIX_sim'] = tcop[1]
+    plt.plot(rets['SPY_sim'].values, label='SPY Real Returns', alpha=0.7)
+    plt.plot(rets['VIX_sim'].values, label='VIX Copula Sim Returns', alpha=0.7)
+    plt.xlabel("Time")
+    plt.ylabel("Returns")
+    plt.title("t-copula:    Real vs Copula Simulated Returns")
     plt.legend()
     plt.grid(True, alpha=0.3)
     st.pyplot(fig_line)

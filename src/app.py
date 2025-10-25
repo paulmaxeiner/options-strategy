@@ -11,7 +11,13 @@ import streamlit as st
 import pytz as pytz
 from copulas.multivariate import GaussianMultivariate
 
-
+with st.sidebar:
+    st.title("0DTE Options Strategy Simulator")
+    st.markdown("""
+    This app simulates a simple 0DTE call option trading strategy based on RSI signals / VIX Copula Signals.
+    It uses the Black-Scholes model to price options and evaluates strategy performance over intraday data.
+    """)
+    d = st.date_input("Select Date", value=datetime(2025, 10, 14), min_value=datetime(2025, 1, 1), max_value=datetime(2025, 12, 31))
 
 r=0.03
 sigma=0.5
@@ -118,7 +124,7 @@ st.write(call_returns)
 S0 = spy['Close'].rolling(60, min_periods=1).mean().iloc[-1]
 atm = int(round(S0))
 
-K_values = np.linspace(atm - 20, atm + 20, 20)
+K_values = np.linspace(atm - 20, atm + 20, 20) # k strike prices around the atm price
 T_eps = 1e-6
 T_values = np.linspace(max(T_eps, spy['T'].min()), max(T_eps, spy['T'].max()), 20)
 
@@ -216,3 +222,114 @@ fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(data['Close SPY'], label='Market Return')
 st.pyplot(fig)
 st.pyplot(fig)
+st.line_chart(data['RSI'])
+
+fig, ax = plt.subplots(figsize=(10, 5))
+ax.plot(data['SPY_ret'],data['VIX_ret'], linestyle='', marker='o', markersize=2, alpha=0.5)
+st.pyplot(fig)
+
+
+# options backtest
+
+CONTRACT_MULT = 100 # standard options contract multiplier, 100 shares per contract
+
+def call_px(S, T, K): # black scholes call price with T=0 handling
+    if T <= 0:
+        return max(S - K, 0.0)
+    return black_scholes_call(S, T, K)
+
+position = 0
+entry_strike = None
+entry_px = 0.0
+entry_time = None
+entry_rsi = None
+
+cum_pnl = 0.0
+pnl_series = []
+trades = []
+
+for _, row in data.iterrows():
+    S   = float(row['Close SPY'])
+    T   = float(row['T'])
+    rsi = float(row['RSI'])
+    ts  = row['Datetime'] #time
+
+    #sell if RSI is high
+    if position == 1 and (rsi > 70 or T <= 0):
+        
+        exit_px = call_px(S, T, entry_strike)
+        
+        trade_pnl = (exit_px - entry_px) * CONTRACT_MULT
+        cum_pnl += trade_pnl
+        
+        trades.append({
+            'Open Time':  entry_time,
+            'Close Time': ts,
+            'Strike': int(entry_strike),
+            'Entry RSI': round(entry_rsi, 2),
+            'Exit RSI': round(rsi, 2),
+            'Entry Px': round(entry_px, 4),
+            'Exit Px': round(exit_px, 4),
+            'PnL ($)': round(trade_pnl, 2),
+        })
+        position = 0
+        
+        entry_strike = None
+        
+        entry_px = 0.0
+        
+        entry_time = None
+        entry_rsi = None
+
+    #BUY if RSI is low
+    if position == 0 and rsi < 30 and T > 0:
+        entry_strike = int(round(S)) # ATM strike price
+        entry_px = call_px(S, T, entry_strike)
+        entry_time = ts
+        entry_rsi = rsi
+        position = 1
+
+    pnl_series.append(cum_pnl)
+
+# close at end of trading day
+if position == 1:
+    last = data.iloc[-1]
+    
+    S_end, T_end, rsi_end, ts_end = float(last['Close SPY']), float(last['T']), float(last['RSI']), last['Datetime']
+    exit_px = call_px(S_end, T_end, entry_strike)
+    
+    trade_pnl = (exit_px - entry_px) * CONTRACT_MULT
+    cum_pnl += trade_pnl
+    
+    
+    trades.append({
+        'Open Time': entry_time,
+        'Close Time': ts_end,
+        'Strike': int(entry_strike),
+        'Entry RSI': round(entry_rsi, 2),
+        'Exit RSI': round(rsi_end, 2),
+        'Entry Px': round(entry_px, 4),
+        'Exit Px': round(exit_px, 4),
+        'PnL ($)': round(trade_pnl, 2),
+    })
+    if pnl_series: pnl_series[-1] = cum_pnl
+    position = 0
+
+data['CumPnL_$'] = pnl_series
+
+
+## DISPLAY RESULTS
+
+st.metric("Cumulative P&L in $", value=round(data['CumPnL_$'].iloc[-1], 2))
+trades_df = pd.DataFrame(trades)
+
+st.subheader("Trades")
+
+if trades_df.empty:
+    st.write("No trades executed.")
+else:
+    st.dataframe(trades_df)
+    
+    
+
+

@@ -17,7 +17,7 @@ with st.sidebar:
     This app simulates a simple 0DTE call option trading strategy based on RSI signals / VIX Copula Signals.
     It uses the Black-Scholes model to price options and evaluates strategy performance over intraday data.
     """)
-    d = st.date_input("Select Date", value=datetime(2025, 10, 14), min_value=datetime(2025, 1, 1), max_value=datetime(2025, 12, 31))
+    d = st.date_input("Select Date", value=datetime(2025, 12, 15), min_value=datetime(2025, 1, 1), max_value=datetime(2025, 12, 31))
 
 r=0.03
 sigma=0.5

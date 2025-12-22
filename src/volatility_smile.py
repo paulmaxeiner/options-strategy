@@ -39,14 +39,14 @@ def minutes_to_close(datetime_series):
 
 
 
-dt1_str = "2025-08-14 20:30:00+00:00"
+dt1_str = "2025-12-15 20:30:00+00:00"
 est = pytz.timezone('US/Eastern')
 utc = pytz.utc
 fmt = '%Y-%m-%d %H:%M:%S %Z%z'
 dt1 = datetime.fromisoformat(dt1_str)
 
 
-data = yf.download(['SPY','^VIX'], start='2025-08-14', end='2025-08-15', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2025-12-15', end='2025-12-16', interval='1m')
 
 data = data.dropna()
 data = data.reset_index()

@@ -23,7 +23,7 @@ r=0.03
 sigma=0.5
 
 def black_scholes_call(S,T,K):
-    S = float(S)
+    S = float(S) # rounding
     T = float(T)
     if T == 0:
         return max(S - K, 0)  # Handle expiration edge case

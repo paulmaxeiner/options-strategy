@@ -9,7 +9,7 @@ from scipy import stats as st
 from datetime import datetime, time, timedelta
 import streamlit as st
 import pytz as pytz
-from copulas.multivariate import GaussianMultivariate
+#from copulas.multivariate import GaussianMultivariate
 
 with st.sidebar:
     st.title("0DTE Options Strategy Simulator")

@@ -71,28 +71,45 @@ dt1 = datetime.fromisoformat(dt1_str)
 
 
 data = yf.download(['SPY','^VIX'], start='2025-10-14', end='2025-10-15', interval='1m')
-
 data = data.dropna()
-data = data.reset_index()
 
-data['Time'] = pd.to_datetime(data['Datetime'], utc=True, format='%H:%M:%S.%f').dt.tz_convert('America/New_York').dt.time
+# 1) Bring timestamp out of index into a real column
+data = data.reset_index()   # creates a column called Datetime (usually)
 
-spy = pd.DataFrame(data={
-    'Datetime': data['Datetime'],
-    'Time': data['Time'],
-    'Close': data['Close']['SPY'],
-    'Open': data['Open']['SPY'],
-    'High': data['High']['SPY'],
-    'Low': data['Low']['SPY'],
-    'Volume': data['Volume']['SPY'],
-    'Return': data['Close']['SPY'].pct_change()
+# 2) Flatten MultiIndex columns -> "Close SPY", "Close ^VIX", etc.
+data.columns = [
+    f"{a} {b}".strip() if isinstance(a, str) and isinstance(b, str) else str(a)
+    for a, b in data.columns.to_flat_index()
+]
+
+# After flattening, your timestamp column is typically just "Datetime"
+# But to be safe, detect it:
+dt_col = "Datetime" if "Datetime" in data.columns else ("Date" if "Date" in data.columns else None)
+if dt_col is None:
+    raise KeyError(f"Couldn't find a datetime column. Columns: {data.columns.tolist()}")
+
+# 3) Make Datetime timezone-aware UTC -> convert to NY
+data[dt_col] = pd.to_datetime(data[dt_col], utc=True)
+data["DatetimeNY"] = data[dt_col].dt.tz_convert("America/New_York")
+
+# 4) Time column
+data["Time"] = data["DatetimeNY"].dt.time
+
+# 5) Time-to-close in YEARS (your minutes_to_close already returns years)
+data["T"] = minutes_to_close(data[dt_col])
+spy = pd.DataFrame({
+    "Datetime": data[dt_col],
+    "DatetimeNY": data["DatetimeNY"],
+    "Time": data["Time"],
+    "Open": data["Open SPY"],
+    "High": data["High SPY"],
+    "Low":  data["Low SPY"],
+    "Close": data["Close SPY"],
+    "Volume": data["Volume SPY"],
 })
+spy["Return"] = spy["Close"].pct_change()
+spy["T"] = data["T"]
 
-
-spy['Datetime'] = pd.to_datetime(spy['Datetime'], utc=True)
-spy['Time'] = pd.to_datetime(data['Datetime'], utc=True, format='%H:%M:%S.%f').dt.tz_convert('America/New_York').dt.time
-spy['T'] = data.apply(lambda row: minutes_to_close(row['Datetime']), axis=1)
-st.write(spy)
 
 fig, ax = plt.subplots(figsize=(10, 5))
 ax.plot(spy['Close'], label='SPY Price')
@@ -329,7 +346,6 @@ if trades_df.empty:
     st.write("No trades executed.")
 else:
     st.dataframe(trades_df)
-    
-    
+
 
 

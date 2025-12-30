@@ -10,9 +10,9 @@ import pytz as pytz
 from copulas.visualization import compare_3d, scatter_3d
 from copulas.multivariate import GaussianMultivariate
 from copulas.datasets import sample_trivariate_xyz
-import t_copula as tc
+#import t_copula as tc
 
-data = yf.download(['SPY','^VIX'], start='2025-10-14', end='2025-10-15', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2025-12-15', end='2025-12-16', interval='1m')
 data.reset_index(inplace=True)
 data.dropna(inplace=True)
 
@@ -84,6 +84,24 @@ else:
     rets['SPY_sim'] = sim['SPY_ret'].values
     rets['VIX_sim'] = sim['VIX_ret'].values
     
+    X = np.linspace(rets['SPY_ret'].min(), rets['SPY_ret'].max(), 100)
+    Y = np.linspace(rets['VIX_ret'].min(), rets['VIX_ret'].max(), 100)
+    X, Y = np.meshgrid(X, Y)
+    Z = np.zeros(X.shape)
+    
+    plt.contourf(X, Y, Z, levels=20, cmap='viridis')
+
+    # 3. Add a colorbar to indicate Z values
+    plt.colorbar(label='Z-values')
+
+    # 4. Add labels and title
+    plt.xlabel('X-axis')
+    plt.ylabel('Y-axis')
+    plt.title('Filled Contour Plot')
+
+    # 5. Display the plot
+    plt.show()
+    
     
     
     fig_line = plt.figure(figsize=(10, 4))
@@ -97,17 +115,17 @@ else:
     st.pyplot(fig_line)
     plt.close(fig_line)
     
-    fig_line = plt.figure(figsize=(10, 4))
-    tcop = tc.t_copula_sample(len(rets), df=4, rho=tau, seed=42)
-    rets['SPY_sim'] = tcop[0]
-    rets['VIX_sim'] = tcop[1]
-    plt.plot(rets['SPY_sim'].values, label='SPY Real Returns', alpha=0.7)
-    plt.plot(rets['VIX_sim'].values, label='VIX Copula Sim Returns', alpha=0.7)
-    plt.xlabel("Time")
-    plt.ylabel("Returns")
-    plt.title("t-copula:    Real vs Copula Simulated Returns")
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    st.pyplot(fig_line)
-    plt.close(fig_line)
+    # fig_line = plt.figure(figsize=(10, 4))
+    # tcop = tc.t_copula_sample(len(rets), df=4, rho=tau, seed=42)
+    # rets['SPY_sim'] = tcop[0]
+    # rets['VIX_sim'] = tcop[1]
+    # plt.plot(rets['SPY_sim'].values, label='SPY Real Returns', alpha=0.7)
+    # plt.plot(rets['VIX_sim'].values, label='VIX Copula Sim Returns', alpha=0.7)
+    # plt.xlabel("Time")
+    # plt.ylabel("Returns")
+    # plt.title("t-copula:    Real vs Copula Simulated Returns")
+    # plt.legend()
+    # plt.grid(True, alpha=0.3)
+    # st.pyplot(fig_line)
+    # plt.close(fig_line)
 

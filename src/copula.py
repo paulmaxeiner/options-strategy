@@ -12,7 +12,7 @@ from copulas.multivariate import GaussianMultivariate
 from copulas.datasets import sample_trivariate_xyz
 #import t_copula as tc
 
-data = yf.download(['SPY','^VIX'], start='2025-12-15', end='2025-12-16', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2025-12-23', end='2025-12-24', interval='1m')
 data.reset_index(inplace=True)
 data.dropna(inplace=True)
 

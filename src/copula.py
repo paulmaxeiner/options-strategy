@@ -12,7 +12,7 @@ from copulas.multivariate import GaussianMultivariate
 from copulas.datasets import sample_trivariate_xyz
 #import t_copula as tc
 
-data = yf.download(['SPY','^VIX'], start='2025-12-23', end='2025-12-24', interval='1m')
+data = yf.download(['SPY','^VIX'], start='2011-12-01', end='2025-12-31', interval='1d')
 data.reset_index(inplace=True)
 data.dropna(inplace=True)
 
@@ -104,6 +104,7 @@ else:
     
     
     
+    
     fig_line = plt.figure(figsize=(10, 4))
     plt.plot(rets['SPY_ret'].values, label='SPY Real Returns', alpha=0.7)
     plt.plot(rets['SPY_sim'].values, label='SPY Copula Sim Returns', alpha=0.7)
@@ -129,3 +130,34 @@ else:
     # st.pyplot(fig_line)
     # plt.close(fig_line)
 
+# ===============================
+# Joint density (2D histogram)
+# ===============================
+
+st.subheader("Joint Density: SPY vs VIX (Copula Simulated)")
+
+# FORCE clean 1D numpy arrays (THIS FIXES YOUR ERROR)
+X = np.asarray(sim['SPY_ret']).ravel()
+Y = np.asarray(sim['VIX_ret']).ravel()
+
+# sanity checks (optional but helpful)
+assert X.ndim == 1 and Y.ndim == 1
+assert len(X) == len(Y)
+
+fig_joint = plt.figure(figsize=(6, 5))
+ax = fig_joint.add_subplot(111)
+
+bins = (
+    np.linspace(-0.05, 0.05, 15),
+    np.linspace(-0.2, 0.2, 15)
+)
+
+h = ax.hist2d(X, Y, bins=bins, cmap="viridis")
+
+plt.colorbar(h[3], ax=ax, label="Density")
+ax.set_xlabel("SPY Return")
+ax.set_ylabel("VIX Return")
+ax.set_title("Copula-Simulated Joint Density")
+
+st.pyplot(fig_joint)
+plt.close(fig_joint)

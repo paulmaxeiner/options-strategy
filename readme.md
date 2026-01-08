@@ -10,5 +10,5 @@ The model combines financial theory with empirical market data to exploit intrad
 
 - **Black–Scholes Valuation** computes theoretical European option prices for SPY calls.
 - **VIX Copula Modeling** captures nonlinear dependence between VIX and SPY to detect volatility shifts and identify stronger correlations between SPY and VIS during periods of elevated market volatility.
-- **Automated Data Pipeline** fetches and processes market data using `yfinance` and `pandas`.
+- **Automated Data Pipeline** fetches and processes market data using `yfinance` and `pandas` and `matplotlib`.
 - **Streamlit Dashboard** enables interactive visualization, backtesting, and real-time trade simulation.

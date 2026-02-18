@@ -56,23 +56,31 @@ def minutes_to_close(datetime_series):
     return minutes /60/24/365
 
 
+day = "2026-02-11"
+day_dt = pd.to_datetime(day)
 
-dt1_str = "2025-08-14 20:30:00+00:00"
+dt1_str = f"{day} 20:30:00+00:00"
 est = pytz.timezone('US/Eastern')
 utc = pytz.utc
 fmt = '%Y-%m-%d %H:%M:%S %Z%z'
 dt1 = datetime.fromisoformat(dt1_str)
 
 
-data = yf.download(['SPY','^VIX'], start='2025-08-28', end='2025-08-29', interval='1m')
+data = yf.download(['SPY','^VIX'], start=day_dt, end=day_dt + pd.Timedelta(days=1), interval='1m')
 
 data = data.dropna()
 data = data.reset_index()
 
-data['Time'] = pd.to_datetime(data['Datetime'], utc=True, format='%H:%M:%S.%f').dt.tz_convert('America/New_York').dt.time
+dt_col = "Datetime" if "Datetime" in data.columns else ("Date" if "Date" in data.columns else None)
+if dt_col is None:
+    st.error(f"Couldn't find a datetime column. Columns: {data.columns.tolist()}")
+    st.stop()
+
+data[dt_col] = pd.to_datetime(data[dt_col], utc=True)
+data['Time'] = data[dt_col].dt.tz_convert('America/New_York').dt.time
 
 spy = pd.DataFrame(data={
-    'Datetime': data['Datetime'],
+    'Datetime': data[dt_col],
     'Time': data['Time'],
     'Close': data['Close']['SPY'],
     'Open': data['Open']['SPY'],
@@ -84,8 +92,8 @@ spy = pd.DataFrame(data={
 
 
 spy['Datetime'] = pd.to_datetime(spy['Datetime'], utc=True)
-spy['Time'] = pd.to_datetime(data['Datetime'], utc=True, format='%H:%M:%S.%f').dt.tz_convert('America/New_York').dt.time
-spy['T'] = data.apply(lambda row: minutes_to_close(row['Datetime']), axis=1)
+spy['Time'] = data[dt_col].dt.tz_convert('America/New_York').dt.time
+spy['T'] = data.apply(lambda row: minutes_to_close(row[dt_col]), axis=1)
 st.write(spy)
 
 fig, ax = plt.subplots(figsize=(10, 5))
@@ -180,7 +188,7 @@ ax.grid(True)
 st.pyplot(fig)
 
 
-data['T'] = data.apply(lambda row: minutes_to_close(row['Datetime']), axis=1)
+data['T'] = data.apply(lambda row: minutes_to_close(row[dt_col]), axis=1)
 
 ##data.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in df.columns]
 data.columns = [' '.join(col).strip() for col in data.columns.values]

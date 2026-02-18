@@ -95,6 +95,8 @@ Z = call_prices.values
 st.write(X,Y,Z)
 
 
+## Experiments below:
+
 fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
 
 ### From matplotlib tutorials

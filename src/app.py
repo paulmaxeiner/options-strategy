@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 from matplotlib.ticker import LinearLocator
 from scipy.stats import norm
-from scipy import stats as st
+from scipy import stats
 from datetime import datetime, time, timedelta
 import streamlit as st
 import pytz as pytz
@@ -250,8 +250,48 @@ st.pyplot(fig)
 
 ##data.columns = ['_'.join(col).strip() if isinstance(col, tuple) else col for col in data.columns]
 
+data["r_spy"] = data['Close SPY'].pct_change()
+data["r_vix"] = data['Close ^VIX'].pct_change()
 
+window = 200
+nu = 5
 
+prob_up = np.full(len(data), np.nan)
+
+for i in range(window, len(data)):
+    window_data = data.iloc[i-window:i].dropna(subset=['r_spy', 'r_vix'])
+    if len(window_data) < 50:
+        continue
+    
+    rs = window_data['r_spy'].values
+    rv = window_data['r_vix'].values
+    
+    u = (stats.rankdata(rs) - 0.5) / len(rs)
+    v = (stats.rankdata(rv) - 0.5) / len(rv)
+    
+    tau = stats.kendalltau(rs, rv).correlation
+    rho = np.sin(np.pi * tau/2)
+    rho = np.clip(rho, -0.95, 0.95)
+    
+    v_obs = (np.sum(rv <= data.iloc[i]["r_vix"]) + 0.5) / (len(rv) + 1)
+    
+    y = stats.t.ppf(v_obs, df=nu)
+    
+    mean = rho * y
+    scale = np.sqrt((nu + y**2) * (1 - rho**2) / (nu + 1))
+    
+    u0 = (np.sum(rs <= 0) + 0.5) / (len(rs) + 1)
+    x0 = stats.t.ppf(u0, df=nu)
+
+    z = (x0 - mean) / scale
+    p_spy_le_0 = stats.t.cdf(z, df=nu+1)
+
+    prob_up[i] = 1 - p_spy_le_0
+
+data["copula_prob_spy_up"] = prob_up
+
+st.subheader("Copula Probability SPY Up")
+st.line_chart(data.set_index("Datetime")[["copula_prob_spy_up"]])
 
 
 
